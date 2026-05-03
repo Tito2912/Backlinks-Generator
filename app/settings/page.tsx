@@ -1,0 +1,1 @@
+export default function Page(){return <div className="space-y-4"><h1 className="text-3xl font-bold capitalize">settings</h1><div className="card"><p>Module settings prêt dans la structure. Branche les formulaires Supabase selon le schéma SQL fourni.</p></div></div>}

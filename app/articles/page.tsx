@@ -1,1 +1,10 @@
-export default function Page(){return <div className="space-y-4"><h1 className="text-3xl font-bold capitalize">articles</h1><div className="card"><p>Module articles prêt dans la structure. Branche les formulaires Supabase selon le schéma SQL fourni.</p></div></div>}
+import ArticlesManager from "@/components/ArticlesManager";
+
+export default function ArticlesPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Articles</h1>
+      <ArticlesManager />
+    </div>
+  );
+}

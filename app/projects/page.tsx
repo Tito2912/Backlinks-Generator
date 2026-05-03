@@ -1,1 +1,10 @@
-export default function Page(){return <div className="space-y-4"><h1 className="text-3xl font-bold capitalize">projects</h1><div className="card"><p>Module projects prêt dans la structure. Branche les formulaires Supabase selon le schéma SQL fourni.</p></div></div>}
+import ProjectsManager from "@/components/ProjectsManager";
+
+export default function ProjectsPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Projects</h1>
+      <ProjectsManager />
+    </div>
+  );
+}

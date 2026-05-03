@@ -1,6 +1,20 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let client: OpenAI | null = null;
+
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Missing OPENAI_API_KEY");
+  }
+
+  if (!client) {
+    client = new OpenAI({ apiKey });
+  }
+
+  return client;
+}
 
 export async function generateBacklinkReply(args: {
   platform: string;
@@ -22,8 +36,8 @@ Rules:
 - Keep it under 180 words.
 - Avoid fake claims.`;
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4.1-mini",
+  const response = await getOpenAIClient().chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.7
   });

@@ -6,26 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@supabase/supabase-js": "latest",
-    "lucide-react": "latest",
-    "next": "latest",
-    "openai": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "zod": "latest"
+    "@supabase/supabase-js": "2.105.1",
+    "lucide-react": "1.14.0",
+    "next": "16.2.4",
+    "openai": "6.35.0",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "zod": "4.4.2"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "autoprefixer": "^10.5.0",
-    "eslint": "latest",
-    "eslint-config-next": "latest",
-    "postcss": "^8.5.13",
-    "tailwindcss": "^3.4.17",
-    "typescript": "latest"
+    "@types/node": "25.6.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "autoprefixer": "10.5.0",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.4",
+    "postcss": "8.5.13",
+    "tailwindcss": "3.4.17",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5"
   }
 }

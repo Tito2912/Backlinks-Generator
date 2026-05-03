@@ -1,1 +1,10 @@
-export default function Page(){return <div className="space-y-4"><h1 className="text-3xl font-bold capitalize">campaigns</h1><div className="card"><p>Module campaigns prêt dans la structure. Branche les formulaires Supabase selon le schéma SQL fourni.</p></div></div>}
+import CampaignsManager from "@/components/CampaignsManager";
+
+export default function CampaignsPage() {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Campaigns</h1>
+      <CampaignsManager />
+    </div>
+  );
+}

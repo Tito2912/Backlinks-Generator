@@ -1,54 +1,60 @@
-import OpenAI from "openai";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { generateBacklinkReply } from "@/lib/openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+export const runtime = "nodejs";
+
+const replyRequestSchema = z.object({
+  platform: z.string().trim().min(1).default("reddit"),
+  opportunityTitle: z.string().trim().min(1, "Opportunity title is required"),
+  opportunityUrl: z.string().trim().url().optional(),
+  targetArticleUrl: z.string().trim().url("Target article URL must be valid"),
+  targetArticleTitle: z.string().trim().optional(),
+  tone: z.string().trim().optional(),
 });
+
+function normalizeBody(body: unknown) {
+  if (!body || typeof body !== "object") return body;
+
+  const data = body as Record<string, unknown>;
+
+  return {
+    ...data,
+    opportunityTitle: data.opportunityTitle ?? data.title,
+    targetArticleUrl: data.targetArticleUrl ?? data.link,
+  };
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { title, link } = body;
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY is not configured" },
+        { status: 503 }
+      );
+    }
 
-    if (!title || !link) {
-      return new Response(
-        JSON.stringify({ error: "Missing title or link" }),
+    const body = normalizeBody(await req.json());
+    const parsed = replyRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid reply request", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "user",
-          content: `Write a helpful Reddit reply for this topic: ${title}.
-Include this link naturally: ${link}.
-Tone: human, helpful, not spammy.`,
-        },
-      ],
-    });
+    const reply = await generateBacklinkReply(parsed.data);
+    return NextResponse.json({ reply });
+  } catch (error) {
+    console.error("OpenAI reply API error:", error);
 
-    const reply = completion.choices?.[0]?.message?.content || "";
-
-    return new Response(
-      JSON.stringify({ reply }),
+    return NextResponse.json(
       {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  } catch (error: any) {
-    console.error("OpenAI error:", error);
-
-    return new Response(
-      JSON.stringify({
         error: "Failed to generate reply",
-        details: error.message,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
     );
   }
 }

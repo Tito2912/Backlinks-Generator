@@ -1,6 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { Save } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { suggestTargetLink } from "@/lib/linkSuggestions";
+import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
+import type { Campaign, Project } from "@/lib/supabase/types";
 
 type Item = {
   source: string;
@@ -17,11 +20,45 @@ function sortByScore(items: Item[]) {
 }
 
 export default function SearchPanel() {
+  const { configured, supabase, user } = useSupabaseSession();
   const [query, setQuery] = useState("make money with ai");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<"reddit" | "google" | null>(null);
   const [error, setError] = useState("");
   const [lastSource, setLastSource] = useState<"reddit" | "google" | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [savingUrl, setSavingUrl] = useState("");
+  const [savedUrl, setSavedUrl] = useState("");
+  const [saveError, setSaveError] = useState("");
+
+  const loadWorkspace = useCallback(async () => {
+    if (!supabase || !user) return;
+
+    const [projectsResult, campaignsResult] = await Promise.all([
+      supabase.from("projects").select("*").order("name", { ascending: true }),
+      supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
+    ]);
+
+    if (projectsResult.error) {
+      setSaveError(projectsResult.error.message);
+      return;
+    }
+
+    if (campaignsResult.error) {
+      setSaveError(campaignsResult.error.message);
+      return;
+    }
+
+    setProjects((projectsResult.data || []) as Project[]);
+    setCampaigns((campaignsResult.data || []) as Campaign[]);
+  }, [supabase, user]);
+
+  useEffect(() => {
+    loadWorkspace();
+  }, [loadWorkspace]);
 
   async function run(source: "reddit" | "google") {
     setLoading(source);
@@ -43,11 +80,50 @@ export default function SearchPanel() {
       }
 
       setItems(sortByScore(json.data || []));
+      setSavedUrl("");
     } catch (err: any) {
       setError(err?.message || "Erreur pendant la recherche");
     } finally {
       setLoading(null);
     }
+  }
+
+  async function saveOpportunity(
+    item: Item,
+    targetArticleUrl: string,
+    reply: string
+  ) {
+    if (!supabase || !user) return;
+
+    setSavingUrl(item.url);
+    setSavedUrl("");
+    setSaveError("");
+
+    const { error: upsertError } = await supabase.from("opportunities").upsert(
+      {
+        campaign_id: selectedCampaignId || null,
+        opportunity_score: item.opportunity_score || 0,
+        project_id: selectedProjectId || null,
+        reply: reply || null,
+        snippet: item.snippet || null,
+        source: item.source,
+        status: "new",
+        target_article_url: targetArticleUrl,
+        title: item.title,
+        url: item.url,
+        user_id: user.id,
+      },
+      { onConflict: "user_id,url" }
+    );
+
+    setSavingUrl("");
+
+    if (upsertError) {
+      setSaveError(upsertError.message);
+      return;
+    }
+
+    setSavedUrl(item.url);
   }
 
   const scoreLabel = useMemo(() => {
@@ -60,7 +136,7 @@ export default function SearchPanel() {
     <div className="card space-y-4">
       <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-xl font-bold">Recherche d'opportunités</h2>
+          <h2 className="text-xl font-bold">Recherche d&apos;opportunités</h2>
           <p className="text-sm text-slate-400">Reddit passe par Google/SerpAPI pour éviter les blocages 403.</p>
         </div>
         {scoreLabel && <span className="badge">{scoreLabel}</span>}
@@ -82,9 +158,56 @@ export default function SearchPanel() {
         </button>
       </div>
 
+      {configured && user && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <select
+            className="input"
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+          >
+            <option value="">Sans projet</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input"
+            value={selectedCampaignId}
+            onChange={(event) => setSelectedCampaignId(event.target.value)}
+          >
+            <option value="">Sans campagne</option>
+            {campaigns.map((campaign) => (
+              <option key={campaign.id} value={campaign.id}>
+                {campaign.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {configured && !user && (
+        <p className="text-sm text-slate-400">
+          Connecte-toi dans Settings pour sauvegarder les opportunites.
+        </p>
+      )}
+
+      {!configured && (
+        <p className="text-sm text-slate-400">
+          Configure Supabase pour sauvegarder les opportunites.
+        </p>
+      )}
+
       {error && (
         <div className="rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">
           {error}
+        </div>
+      )}
+
+      {saveError && (
+        <div className="rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">
+          {saveError}
         </div>
       )}
 
@@ -106,7 +229,13 @@ export default function SearchPanel() {
             <p className="mt-2 text-sm text-slate-400">
               {i.source} {i.snippet ? `— ${i.snippet}` : ""}
             </p>
-            <ReplyBox title={i.title} platform={i.source} url={i.url} query={query} />
+            <ReplyBox
+              item={i}
+              onSave={user ? saveOpportunity : undefined}
+              query={query}
+              saved={savedUrl === i.url}
+              saving={savingUrl === i.url}
+            />
           </div>
         ))}
       </div>
@@ -114,8 +243,20 @@ export default function SearchPanel() {
   );
 }
 
-function ReplyBox({ title, platform, url, query }: { title: string; platform: string; url: string; query: string }) {
-  const suggested = useMemo(() => suggestTargetLink(`${query} ${title}`), [query, title]);
+function ReplyBox({
+  item,
+  onSave,
+  query,
+  saved,
+  saving,
+}: {
+  item: Item;
+  onSave?: (item: Item, targetArticleUrl: string, reply: string) => Promise<void>;
+  query: string;
+  saved: boolean;
+  saving: boolean;
+}) {
+  const suggested = useMemo(() => suggestTargetLink(`${query} ${item.title}`), [query, item.title]);
   const [targetArticleUrl, setTarget] = useState(suggested.url);
   const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
@@ -131,7 +272,12 @@ function ReplyBox({ title, platform, url, query }: { title: string; platform: st
       const res = await fetch("/api/generate-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, opportunityTitle: title, opportunityUrl: url, targetArticleUrl }),
+        body: JSON.stringify({
+          platform: item.source,
+          opportunityTitle: item.title,
+          opportunityUrl: item.url,
+          targetArticleUrl,
+        }),
       });
 
       const json = await res.json();
@@ -156,7 +302,7 @@ function ReplyBox({ title, platform, url, query }: { title: string; platform: st
   }
 
   function openOpportunity() {
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(item.url, "_blank", "noopener,noreferrer");
   }
 
   function copyAndOpen() {
@@ -195,12 +341,23 @@ function ReplyBox({ title, platform, url, query }: { title: string; platform: st
         {reply && (
           <>
             <button className="btn" type="button" onClick={copyReply}>
-              {copied ? "Copié ✅" : "Copier réponse"}
+              {copied ? "Copie" : "Copier reponse"}
             </button>
             <button className="btn" type="button" onClick={copyAndOpen}>
               Copier + ouvrir
             </button>
           </>
+        )}
+        {onSave && (
+          <button
+            className="btn inline-flex items-center gap-2"
+            type="button"
+            disabled={saving}
+            onClick={() => onSave(item, targetArticleUrl, reply)}
+          >
+            <Save size={16} />
+            {saving ? "Sauvegarde..." : saved ? "Sauvegarde OK" : "Sauvegarder"}
+          </button>
         )}
       </div>
 

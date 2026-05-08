@@ -35,15 +35,16 @@ export default function DashboardPanel() {
   }, [opportunities]);
 
   const countTable = useCallback(async (table: keyof Stats) => {
-    if (!supabase) return 0;
+    if (!supabase || !user) return 0;
 
     const { count, error: countError } = await supabase
       .from(table)
-      .select("*", { count: "exact", head: true });
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
 
     if (countError) throw countError;
     return count || 0;
-  }, [supabase]);
+  }, [supabase, user]);
 
   const loadDashboard = useCallback(async () => {
     if (!supabase || !user) return;
@@ -60,6 +61,7 @@ export default function DashboardPanel() {
           supabase
             .from("opportunities")
             .select("*")
+            .eq("user_id", user.id)
             .order("created_at", { ascending: false })
             .limit(5),
         ]);

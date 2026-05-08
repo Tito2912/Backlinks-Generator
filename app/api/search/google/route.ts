@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { searchGoogle } from "@/lib/google";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
+  const { allowed } = rateLimit(req, "/api/search/google");
+  if (!allowed) {
+    return NextResponse.json({ error: "Trop de requêtes, réessaie dans 1 minute." }, { status: 429 });
+  }
+
   try {
     const { query } = await req.json();
 

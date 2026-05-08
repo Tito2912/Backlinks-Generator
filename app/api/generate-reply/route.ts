@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateBacklinkReply } from "@/lib/openai";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,11 @@ function normalizeBody(body: unknown) {
 }
 
 export async function POST(req: Request) {
+  const { allowed } = rateLimit(req, "/api/generate-reply");
+  if (!allowed) {
+    return NextResponse.json({ error: "Trop de requêtes, réessaie dans 1 minute." }, { status: 429 });
+  }
+
   try {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(

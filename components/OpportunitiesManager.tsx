@@ -1,40 +1,38 @@
 "use client";
 
-import { Download, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { rowsToCsv } from "@/lib/csv";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Opportunity } from "@/lib/supabase/types";
 
 const statuses = ["new", "replied", "submitted", "won", "lost", "ignored"];
+const PAGE_SIZE = 25;
 
 export default function OpportunitiesManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
-  const filtered = useMemo(
-    () =>
-      opportunities.filter((opportunity) => {
-        const statusMatch =
-          statusFilter === "all" || opportunity.status === statusFilter;
-        const sourceMatch =
-          sourceFilter === "all" || opportunity.source === sourceFilter;
-        return statusMatch && sourceMatch;
-      }),
-    [opportunities, sourceFilter, statusFilter]
-  );
-
-  const loadOpportunities = useCallback(async () => {
+  const loadOpportunities = useCallback(async (currentPage = 0, status = statusFilter, source = sourceFilter) => {
     if (!supabase || !user) return;
 
-    const { data, error: loadError } = await supabase
+    let query = supabase
       .from("opportunities")
-      .select("*")
+      .select("*", { count: "exact" })
+      .eq("user_id", user.id)
       .order("opportunity_score", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+
+    if (status !== "all") query = query.eq("status", status);
+    if (source !== "all") query = query.eq("source", source);
+
+    const { data, count, error: loadError } = await query;
 
     if (loadError) {
       setError(loadError.message);
@@ -42,11 +40,24 @@ export default function OpportunitiesManager() {
     }
 
     setOpportunities((data || []) as Opportunity[]);
-  }, [supabase, user]);
+    setTotal(count || 0);
+  }, [supabase, user, statusFilter, sourceFilter]);
 
   useEffect(() => {
-    loadOpportunities();
-  }, [loadOpportunities]);
+    loadOpportunities(page, statusFilter, sourceFilter);
+  }, [loadOpportunities, page, statusFilter, sourceFilter]);
+
+  function handleStatusFilter(value: string) {
+    setStatusFilter(value);
+    setPage(0);
+    loadOpportunities(0, value, sourceFilter);
+  }
+
+  function handleSourceFilter(value: string) {
+    setSourceFilter(value);
+    setPage(0);
+    loadOpportunities(0, statusFilter, value);
+  }
 
   async function updateStatus(id: string, status: string) {
     if (!supabase) return;
@@ -54,28 +65,25 @@ export default function OpportunitiesManager() {
     const { error: updateError } = await supabase
       .from("opportunities")
       .update({ status })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user!.id);
 
     if (updateError) {
       setError(updateError.message);
       return;
     }
 
-    await loadOpportunities();
+    await loadOpportunities(page);
   }
 
   async function updateNotes(id: string, notes: string) {
     if (!supabase) return;
 
-    const { error: updateError } = await supabase
+    await supabase
       .from("opportunities")
       .update({ notes })
-      .eq("id", id);
-
-    if (updateError) {
-      setError(updateError.message);
-      return;
-    }
+      .eq("id", id)
+      .eq("user_id", user!.id);
   }
 
   async function deleteOpportunity(id: string) {
@@ -84,28 +92,23 @@ export default function OpportunitiesManager() {
     const { error: deleteError } = await supabase
       .from("opportunities")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user!.id);
 
     if (deleteError) {
       setError(deleteError.message);
       return;
     }
 
-    await loadOpportunities();
+    const newPage = opportunities.length === 1 && page > 0 ? page - 1 : page;
+    setPage(newPage);
+    await loadOpportunities(newPage);
   }
 
   function exportCsv() {
     const csv = rowsToCsv(
-      [
-        "source",
-        "title",
-        "url",
-        "target_article_url",
-        "score",
-        "status",
-        "notes",
-      ],
-      filtered.map((opportunity) => [
+      ["source", "title", "url", "target_article_url", "score", "status", "notes"],
+      opportunities.map((opportunity) => [
         opportunity.source,
         opportunity.title,
         opportunity.url,
@@ -145,6 +148,8 @@ export default function OpportunitiesManager() {
     );
   }
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   return (
     <div className="card space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -155,7 +160,7 @@ export default function OpportunitiesManager() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn inline-flex items-center gap-2" onClick={loadOpportunities}>
+          <button className="btn inline-flex items-center gap-2" onClick={() => loadOpportunities(page)}>
             <RefreshCw size={16} />
             Actualiser
           </button>
@@ -170,7 +175,7 @@ export default function OpportunitiesManager() {
         <select
           className="input"
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => handleStatusFilter(event.target.value)}
         >
           <option value="all">Tous les statuts</option>
           {statuses.map((status) => (
@@ -182,7 +187,7 @@ export default function OpportunitiesManager() {
         <select
           className="input"
           value={sourceFilter}
-          onChange={(event) => setSourceFilter(event.target.value)}
+          onChange={(event) => handleSourceFilter(event.target.value)}
         >
           <option value="all">Toutes les sources</option>
           <option value="reddit">reddit</option>
@@ -193,7 +198,7 @@ export default function OpportunitiesManager() {
       {error && <p className="text-sm text-red-300">{error}</p>}
 
       <div className="space-y-3">
-        {filtered.map((opportunity) => (
+        {opportunities.map((opportunity) => (
           <div className="rounded-xl border border-slate-800 p-4" key={opportunity.id}>
             <div className="flex flex-col gap-3 md:flex-row md:justify-between">
               <div className="min-w-0">
@@ -213,9 +218,7 @@ export default function OpportunitiesManager() {
                 <select
                   className="input min-w-36"
                   value={opportunity.status || "new"}
-                  onChange={(event) =>
-                    updateStatus(opportunity.id, event.target.value)
-                  }
+                  onChange={(event) => updateStatus(opportunity.id, event.target.value)}
                 >
                   {statuses.map((status) => (
                     <option key={status} value={status}>
@@ -242,12 +245,38 @@ export default function OpportunitiesManager() {
           </div>
         ))}
 
-        {filtered.length === 0 && (
+        {opportunities.length === 0 && (
           <p className="text-sm text-slate-400">
             Aucune opportunite ne correspond aux filtres.
           </p>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-slate-400">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} sur {total}
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn inline-flex items-center gap-1"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              <ChevronLeft size={16} />
+              Précédent
+            </button>
+            <button
+              className="btn inline-flex items-center gap-1"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Suivant
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

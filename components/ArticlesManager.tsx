@@ -1,11 +1,12 @@
 "use client";
 
-import { Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Article, Project } from "@/lib/supabase/types";
 
 const emptyForm = { project_id: "", title: "", url: "", keyword: "" };
+const PAGE_SIZE = 25;
 
 export default function ArticlesManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
@@ -14,14 +15,21 @@ export default function ArticlesManager() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (currentPage = 0) => {
     if (!supabase || !user) return;
 
     const [articlesResult, projectsResult] = await Promise.all([
-      supabase.from("articles").select("*").order("created_at", { ascending: false }),
-      supabase.from("projects").select("*").order("name", { ascending: true }),
+      supabase
+        .from("articles")
+        .select("*", { count: "exact" })
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1),
+      supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
     ]);
 
     if (articlesResult.error) {
@@ -35,12 +43,13 @@ export default function ArticlesManager() {
     }
 
     setArticles((articlesResult.data || []) as Article[]);
+    setTotal(articlesResult.count || 0);
     setProjects((projectsResult.data || []) as Project[]);
   }, [supabase, user]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(page);
+  }, [loadData, page]);
 
   async function saveArticle() {
     if (!supabase || !user || !form.title || !form.url) return;
@@ -69,7 +78,7 @@ export default function ArticlesManager() {
 
     setForm(emptyForm);
     setEditingId(null);
-    await loadData();
+    await loadData(page);
   }
 
   function editArticle(article: Article) {
@@ -95,7 +104,9 @@ export default function ArticlesManager() {
       return;
     }
 
-    await loadData();
+    const newPage = articles.length === 1 && page > 0 ? page - 1 : page;
+    setPage(newPage);
+    await loadData(newPage);
   }
 
   function projectName(projectId: string | null) {
@@ -199,11 +210,37 @@ export default function ArticlesManager() {
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Articles</h2>
-          <button className="btn inline-flex items-center gap-2" onClick={loadData}>
+          <button className="btn inline-flex items-center gap-2" onClick={() => loadData(page)}>
             <RefreshCw size={16} />
             Actualiser
           </button>
         </div>
+
+        {Math.ceil(total / PAGE_SIZE) > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-400">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} sur {total}
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="btn inline-flex items-center gap-1"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft size={16} />
+                Précédent
+              </button>
+              <button
+                className="btn inline-flex items-center gap-1"
+                disabled={page + 1 >= Math.ceil(total / PAGE_SIZE)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {articles.map((article) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, RefreshCw, Save, SearchCheck, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, SearchCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Backlink, Opportunity, Project } from "@/lib/supabase/types";
@@ -15,6 +15,7 @@ const emptyForm = {
 };
 
 const statuses = ["submitted", "won", "lost", "pending"];
+const PAGE_SIZE = 25;
 
 export default function BacklinksManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
@@ -25,15 +26,22 @@ export default function BacklinksManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (currentPage = 0) => {
     if (!supabase || !user) return;
 
     const [backlinksResult, opportunitiesResult, projectsResult] = await Promise.all([
-      supabase.from("backlinks").select("*").order("created_at", { ascending: false }),
-      supabase.from("opportunities").select("*").order("created_at", { ascending: false }),
-      supabase.from("projects").select("*").order("name", { ascending: true }),
+      supabase
+        .from("backlinks")
+        .select("*", { count: "exact" })
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1),
+      supabase.from("opportunities").select("id, title").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
     ]);
 
     if (backlinksResult.error) {
@@ -52,13 +60,14 @@ export default function BacklinksManager() {
     }
 
     setBacklinks((backlinksResult.data || []) as Backlink[]);
+    setTotal(backlinksResult.count || 0);
     setOpportunities((opportunitiesResult.data || []) as Opportunity[]);
     setProjects((projectsResult.data || []) as Project[]);
   }, [supabase, user]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData(page);
+  }, [loadData, page]);
 
   async function saveBacklink() {
     if (!supabase || !user || !form.source_url || !form.target_url) return;
@@ -89,7 +98,7 @@ export default function BacklinksManager() {
 
     setForm(emptyForm);
     setEditingId(null);
-    await loadData();
+    await loadData(page);
   }
 
   function editBacklink(backlink: Backlink) {
@@ -117,7 +126,9 @@ export default function BacklinksManager() {
       return;
     }
 
-    await loadData();
+    const newPage = backlinks.length === 1 && page > 0 ? page - 1 : page;
+    setPage(newPage);
+    await loadData(newPage);
   }
 
   async function checkBacklink(backlink: Backlink) {
@@ -153,7 +164,7 @@ export default function BacklinksManager() {
         throw new Error(updateError.message);
       }
 
-      await loadData();
+      await loadData(page);
     } catch (checkError) {
       setError(checkError instanceof Error ? checkError.message : "Verification impossible");
     } finally {
@@ -296,6 +307,32 @@ export default function BacklinksManager() {
             Actualiser
           </button>
         </div>
+
+        {Math.ceil(total / PAGE_SIZE) > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-400">
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} sur {total}
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="btn inline-flex items-center gap-1"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft size={16} />
+                Précédent
+              </button>
+              <button
+                className="btn inline-flex items-center gap-1"
+                disabled={page + 1 >= Math.ceil(total / PAGE_SIZE)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {backlinks.map((backlink) => (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rateLimit";
 
 const checkSchema = z.object({
   sourceUrl: z.string().trim().url(),
@@ -11,6 +12,11 @@ function normalizeUrl(url: string) {
 }
 
 export async function POST(req: Request) {
+  const { allowed } = rateLimit(req, "/api/backlinks/check");
+  if (!allowed) {
+    return NextResponse.json({ error: "Trop de requêtes, réessaie dans 1 minute." }, { status: 429 });
+  }
+
   try {
     const parsed = checkSchema.safeParse(await req.json());
 

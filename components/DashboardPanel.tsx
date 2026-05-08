@@ -2,6 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Opportunity } from "@/lib/supabase/types";
 
@@ -21,6 +22,7 @@ const emptyStats: Stats = {
 
 export default function DashboardPanel() {
   const { configured, loading, supabase, user } = useSupabaseSession();
+  const { activeSiteId } = useSite();
   const [stats, setStats] = useState(emptyStats);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [error, setError] = useState("");
@@ -37,14 +39,13 @@ export default function DashboardPanel() {
   const countTable = useCallback(async (table: keyof Stats) => {
     if (!supabase || !user) return 0;
 
-    const { count, error: countError } = await supabase
-      .from(table)
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
+    let q = supabase.from(table).select("*", { count: "exact", head: true }).eq("user_id", user.id);
+    if (activeSiteId) q = q.eq("project_id", activeSiteId);
 
+    const { count, error: countError } = await q;
     if (countError) throw countError;
     return count || 0;
-  }, [supabase, user]);
+  }, [supabase, user, activeSiteId]);
 
   const loadDashboard = useCallback(async () => {
     if (!supabase || !user) return;
@@ -58,12 +59,11 @@ export default function DashboardPanel() {
           countTable("backlinks"),
           countTable("campaigns"),
           countTable("opportunities"),
-          supabase
-            .from("opportunities")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
+          (() => {
+            let q = supabase.from("opportunities").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5);
+            if (activeSiteId) q = q.eq("project_id", activeSiteId);
+            return q;
+          })(),
         ]);
 
       if (opportunitiesResult.error) {
@@ -84,7 +84,7 @@ export default function DashboardPanel() {
           : "Chargement impossible"
       );
     }
-  }, [countTable, supabase, user]);
+  }, [countTable, supabase, user, activeSiteId]);
 
   useEffect(() => {
     loadDashboard();

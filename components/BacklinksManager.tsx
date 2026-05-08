@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, SearchCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Backlink, Opportunity, Project } from "@/lib/supabase/types";
 
@@ -19,6 +20,7 @@ const PAGE_SIZE = 25;
 
 export default function BacklinksManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
+  const { activeSiteId } = useSite();
   const [backlinks, setBacklinks] = useState<Backlink[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,13 +35,16 @@ export default function BacklinksManager() {
   const loadData = useCallback(async (currentPage = 0) => {
     if (!supabase || !user) return;
 
+    let blQ = supabase
+      .from("backlinks")
+      .select("*", { count: "exact" })
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+    if (activeSiteId) blQ = blQ.eq("project_id", activeSiteId);
+
     const [backlinksResult, opportunitiesResult, projectsResult] = await Promise.all([
-      supabase
-        .from("backlinks")
-        .select("*", { count: "exact" })
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1),
+      blQ,
       supabase.from("opportunities").select("id, title").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
     ]);
@@ -63,7 +68,7 @@ export default function BacklinksManager() {
     setTotal(backlinksResult.count || 0);
     setOpportunities((opportunitiesResult.data || []) as Opportunity[]);
     setProjects((projectsResult.data || []) as Project[]);
-  }, [supabase, user]);
+  }, [supabase, user, activeSiteId]);
 
   useEffect(() => {
     loadData(page);

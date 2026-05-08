@@ -1,6 +1,7 @@
 "use client";
 import { Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { suggestTargetLink } from "@/lib/linkSuggestions";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Campaign, Project } from "@/lib/supabase/types";
@@ -21,6 +22,7 @@ function sortByScore(items: Item[]) {
 
 export default function SearchPanel() {
   const { configured, supabase, user } = useSupabaseSession();
+  const { activeSiteId } = useSite();
   const [query, setQuery] = useState("make money with ai");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<"reddit" | "google" | null>(null);
@@ -54,7 +56,11 @@ export default function SearchPanel() {
 
     setProjects((projectsResult.data || []) as Project[]);
     setCampaigns((campaignsResult.data || []) as Campaign[]);
-  }, [supabase, user]);
+
+    if (activeSiteId) {
+      setSelectedProjectId(activeSiteId);
+    }
+  }, [supabase, user, activeSiteId]);
 
   useEffect(() => {
     loadWorkspace();

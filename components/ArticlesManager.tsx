@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Article, Project } from "@/lib/supabase/types";
 
@@ -10,6 +11,7 @@ const PAGE_SIZE = 25;
 
 export default function ArticlesManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
+  const { activeSiteId } = useSite();
   const [articles, setArticles] = useState<Article[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -23,12 +25,11 @@ export default function ArticlesManager() {
     if (!supabase || !user) return;
 
     const [articlesResult, projectsResult] = await Promise.all([
-      supabase
-        .from("articles")
-        .select("*", { count: "exact" })
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1),
+      (() => {
+        let q = supabase.from("articles").select("*", { count: "exact" }).eq("user_id", user.id).order("created_at", { ascending: false }).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+        if (activeSiteId) q = q.eq("project_id", activeSiteId);
+        return q;
+      })(),
       supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
     ]);
 
@@ -45,7 +46,7 @@ export default function ArticlesManager() {
     setArticles((articlesResult.data || []) as Article[]);
     setTotal(articlesResult.count || 0);
     setProjects((projectsResult.data || []) as Project[]);
-  }, [supabase, user]);
+  }, [supabase, user, activeSiteId]);
 
   useEffect(() => {
     loadData(page);

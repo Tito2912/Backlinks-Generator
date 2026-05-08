@@ -2,6 +2,7 @@
 
 import { Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Campaign, Project } from "@/lib/supabase/types";
 
@@ -21,6 +22,7 @@ function splitList(value: string) {
 
 export default function CampaignsManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
+  const { activeSiteId } = useSite();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -31,9 +33,12 @@ export default function CampaignsManager() {
   const loadData = useCallback(async () => {
     if (!supabase || !user) return;
 
+    let campQ = supabase.from("campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    if (activeSiteId) campQ = campQ.eq("project_id", activeSiteId);
+
     const [campaignsResult, projectsResult] = await Promise.all([
-      supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
-      supabase.from("projects").select("*").order("name", { ascending: true }),
+      campQ,
+      supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
     ]);
 
     if (campaignsResult.error) {

@@ -289,7 +289,8 @@ function ReplyBox({
       const json = await res.json();
 
       if (!res.ok) {
-        throw new Error(json.error || `Erreur ${res.status}`);
+        const detail = json.details ? ` (${json.details})` : "";
+        throw new Error((json.error || `Erreur ${res.status}`) + detail);
       }
 
       setReply(json.reply || "");

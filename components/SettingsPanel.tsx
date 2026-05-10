@@ -10,14 +10,42 @@ type EnvStatus = {
   supabaseAnon: boolean;
   supabaseService: boolean;
   supabaseUrl: boolean;
+  sendgrid: boolean;
+  sendgridFrom: boolean;
+  notificationEmail: boolean;
+  cronSecret: boolean;
 };
 
-const labels: Array<[keyof EnvStatus, string]> = [
-  ["supabaseUrl", "NEXT_PUBLIC_SUPABASE_URL"],
-  ["supabaseAnon", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
-  ["supabaseService", "SUPABASE_SERVICE_ROLE_KEY"],
-  ["openai", "OPENAI_API_KEY"],
-  ["serpapi", "SERPAPI_API_KEY"],
+const groups: Array<{ title: string; keys: Array<[keyof EnvStatus, string]> }> = [
+  {
+    title: "Supabase",
+    keys: [
+      ["supabaseUrl", "NEXT_PUBLIC_SUPABASE_URL"],
+      ["supabaseAnon", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+      ["supabaseService", "SUPABASE_SERVICE_ROLE_KEY"],
+    ],
+  },
+  {
+    title: "APIs de recherche & IA",
+    keys: [
+      ["openai", "OPENAI_API_KEY"],
+      ["serpapi", "SERPAPI_API_KEY"],
+    ],
+  },
+  {
+    title: "Notifications email (SendGrid)",
+    keys: [
+      ["sendgrid", "SENDGRID_API_KEY"],
+      ["sendgridFrom", "SENDGRID_FROM_EMAIL"],
+      ["notificationEmail", "NOTIFICATION_EMAIL"],
+    ],
+  },
+  {
+    title: "Cron Vercel",
+    keys: [
+      ["cronSecret", "CRON_SECRET"],
+    ],
+  },
 ];
 
 export default function SettingsPanel() {
@@ -65,16 +93,25 @@ export default function SettingsPanel() {
 
         {error && <p className="text-sm text-red-300">{error}</p>}
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {labels.map(([key, label]) => (
-            <div
-              className="flex items-center justify-between rounded-xl border border-slate-800 p-3"
-              key={key}
-            >
-              <span className="text-sm text-slate-300">{label}</span>
-              <span className={status?.[key] ? "badge text-cyan-200" : "badge text-red-200"}>
-                {status?.[key] ? "OK" : "Manquant"}
-              </span>
+        <div className="space-y-4">
+          {groups.map((group) => (
+            <div key={group.title}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {group.title}
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {group.keys.map(([key, label]) => (
+                  <div
+                    className="flex items-center justify-between rounded-xl border border-slate-800 p-3"
+                    key={key}
+                  >
+                    <span className="text-sm text-slate-300">{label}</span>
+                    <span className={status?.[key] ? "badge text-cyan-200" : "badge text-red-200"}>
+                      {status?.[key] ? "OK" : "Manquant"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>

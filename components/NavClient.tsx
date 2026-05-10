@@ -37,7 +37,7 @@ export default function NavClient() {
 
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
+  }, [loadProjects, pathname]);
 
   const activeSite = projects.find((p) => p.id === activeSiteId);
 

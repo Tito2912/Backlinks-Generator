@@ -1,7 +1,8 @@
 "use client";
 
-import { Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Check, Pencil, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSite } from "@/contexts/SiteContext";
 import { useSupabaseSession } from "@/lib/supabase/useSupabaseSession";
 import type { Project } from "@/lib/supabase/types";
 
@@ -9,6 +10,7 @@ const emptyForm = { name: "", domain: "", niche: "" };
 
 export default function ProjectsManager() {
   const { configured, loading, supabase, user } = useSupabaseSession();
+  const { activeSiteId, setActiveSiteId } = useSite();
   const [projects, setProjects] = useState<Project[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -184,18 +186,34 @@ export default function ProjectsManager() {
         <div className="space-y-3">
           {projects.map((project) => (
             <div
-              className="rounded-xl border border-slate-800 p-4"
+              className={`rounded-xl border p-4 ${activeSiteId === project.id ? "border-cyan-500" : "border-slate-800"}`}
               key={project.id}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="font-semibold">{project.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{project.name}</p>
+                    {activeSiteId === project.id && (
+                      <span className="badge text-cyan-300">actif</span>
+                    )}
+                  </div>
                   <p className="text-sm text-slate-400">
                     {project.domain}
                     {project.niche ? ` - ${project.niche}` : ""}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-semibold text-sm ${
+                      activeSiteId === project.id
+                        ? "bg-slate-700 text-slate-400 cursor-default"
+                        : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                    }`}
+                    onClick={() => setActiveSiteId(activeSiteId === project.id ? "" : project.id)}
+                  >
+                    <Check size={14} />
+                    {activeSiteId === project.id ? "Site actif" : "Activer"}
+                  </button>
                   <button
                     className="btn inline-flex items-center gap-2"
                     onClick={() => editProject(project)}

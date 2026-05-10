@@ -69,11 +69,20 @@ export async function GET(req: Request) {
       const userEmail = process.env.NOTIFICATION_EMAIL;
       if (userEmail) {
         try {
+          let siteName = "votre site";
+          if (backlink.project_id) {
+            const { data: project } = await supabase
+              .from("projects")
+              .select("name")
+              .eq("id", backlink.project_id)
+              .single();
+            if (project?.name) siteName = project.name;
+          }
           await sendBacklinkWonEmail({
             to: userEmail,
             sourceUrl: backlink.source_url,
             targetUrl: backlink.target_url,
-            siteName: backlink.project_id || "votre site",
+            siteName,
           });
         } catch {
           // Email failure shouldn't break the cron

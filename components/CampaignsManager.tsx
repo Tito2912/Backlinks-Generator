@@ -53,7 +53,7 @@ export default function CampaignsManager() {
 
     setCampaigns((campaignsResult.data || []) as Campaign[]);
     setProjects((projectsResult.data || []) as Project[]);
-  }, [supabase, user]);
+  }, [supabase, user, activeSiteId]);
 
   useEffect(() => {
     loadData();
@@ -74,7 +74,7 @@ export default function CampaignsManager() {
     };
 
     const result = editingId
-      ? await supabase.from("campaigns").update(payload).eq("id", editingId)
+      ? await supabase.from("campaigns").update(payload).eq("id", editingId).eq("user_id", user.id)
       : await supabase.from("campaigns").insert(payload);
 
     setSaving(false);
@@ -109,12 +109,13 @@ export default function CampaignsManager() {
   }
 
   async function deleteCampaign(id: string) {
-    if (!supabase) return;
+    if (!supabase || !user) return;
 
     const { error: deleteError } = await supabase
       .from("campaigns")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (deleteError) {
       setError(deleteError.message);

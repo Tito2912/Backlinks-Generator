@@ -40,8 +40,8 @@ export default function SearchPanel() {
     if (!supabase || !user) return;
 
     const [projectsResult, campaignsResult] = await Promise.all([
-      supabase.from("projects").select("*").order("name", { ascending: true }),
-      supabase.from("campaigns").select("*").order("created_at", { ascending: false }),
+      supabase.from("projects").select("*").eq("user_id", user.id).order("name", { ascending: true }),
+      supabase.from("campaigns").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]);
 
     if (projectsResult.error) {

@@ -307,7 +307,7 @@ export default function BacklinksManager() {
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Backlinks</h2>
-          <button className="btn inline-flex items-center gap-2" onClick={loadData}>
+          <button className="btn inline-flex items-center gap-2" onClick={() => loadData(page)}>
             <RefreshCw size={16} />
             Actualiser
           </button>
